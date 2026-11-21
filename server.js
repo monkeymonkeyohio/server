@@ -8,11 +8,24 @@ const proxy = httpProxy.createProxyServer({ changeOrigin: true, ws: true });
 // Only allow official Shell Shockers domains
 const ALLOWED_HOST = /^([a-z0-9-]+\.)*shellshock\.io$/i;
 
-function parseTarget(url) {
-  const match = url.match(/^\/([^/?#]+)(.*)$/);
-  if (!match || !ALLOWED_HOST.test(match[1])) return null;
-  return { host: match[1], path: match[2] || '/' };
+function parseTarget(rawUrl) {
+  const qIndex = rawUrl.indexOf('?');
+  const pathOnly = qIndex === -1 ? rawUrl : rawUrl.slice(0, qIndex);
+  const query = qIndex === -1 ? '' : rawUrl.slice(qIndex);
+
+  const segments = pathOnly.slice(1).split('/');
+  const first = segments[0];
+
+  // If the first path segment is a *.shellshock.io domain (e.g. /useast1.shellshock.io/...)
+  if (first && ALLOWED_HOST.test(first)) {
+    segments.shift();
+    return { host: first, path: '/' + segments.join('/') + query };
+  }
+
+  // Otherwise default to main shellshock.io (handles /matchmaker/, /services/, etc.)
+  return { host: 'shellshock.io', path: rawUrl };
 }
+
 
 // Spoof Origin so Shell Shockers' matchmaker & game servers allow the connection
 proxy.on('proxyReq', (proxyReq) => {
